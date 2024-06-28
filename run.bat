@@ -1,5 +1,7 @@
 @echo off
+mode con: cols=80 lines=20
 setlocal enabledelayedexpansion
+chcp 65001 > nul
 >nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
 
 :: This is not a script detailing every single part for you to try to understand what is happening, 
@@ -7,22 +9,26 @@ setlocal enabledelayedexpansion
 :: to find out what each piece of the script does.
 
 if "%errorlevel%" NEQ "0" (
+    title Error
     echo This script requires administrative privileges.
-    echo Please run this script as an administrator.
+    echo Please right click file → Run as an administrator.
     pause
     exit
 )
 
-set START_TIME=%TIME%
+for /f "tokens=1-3 delims=:." %%a in ("%TIME%") do set /a "START_TIME=(((%%a*60)+1%%b %% 100)*60)+1%%c %% 100"
 set pwr=powershell.exe -Command
-set "u=echo %~1 & title %~1"
 cls
 echo This script will harden and debloat your windows system for you.
 echo.
-%u% Setting up...
-
-echo The script is now silently running all commands and processes in the background just sit back and let the script work its magic. The script will sound 5 beeps when it is done.
-%u% Running...
+title Setting up...
+echo Setting up...
+echo.
+echo The script is now silently running all commands and processes in the background just sit back and let the script work its magic. 
+echo The script will sound 5 beeps when it is done.
+echo.
+title Running...
+echo Running...
 :: Windows Store
 %pwr% "Get-AppxPackage -AllUsers *store* | Remove-AppxPackage" > nul
 reg add "HKLM\Software\Policies\Microsoft\WindowsStore" /v RemoveWindowsStore /t REG_DWORD /d 1 /f > nul
@@ -34,7 +40,7 @@ sc delete PushToInstall > nul
 
 :: Music, TV, ...
 %pwr% "Get-AppxPackage -AllUsers *zune* | Remove-AppxPackage" > nul
-%pwr% "Get-WindowsPackage -Online | Where PackageName -like *MediaPlayer* | Remove-WindowsPackage -Online -NoRestart"
+%pwr% "Get-WindowsPackage -Online | Where PackageName -like *MediaPlayer* | Remove-WindowsPackage -Online -NoRestart" > nul
 
 :: Xbox and Game DVR
 %pwr% "Get-AppxPackage -AllUsers *xbox* | Remove-AppxPackage" > nul
@@ -166,7 +172,7 @@ schtasks /Change /TN "\Microsoft\Windows\HelloFace\FODCleanupTask" /Disable > nu
 for /f "tokens=1* delims= " %%I in ('reg query "HKEY_CLASSES_ROOT\SystemFileAssociations" /s /k /f "3D Edit" ^| find /i "3D Edit"') do (reg delete "%%I" /f) > nul
 for /f "tokens=1* delims= " %%I in ('reg query "HKEY_CLASSES_ROOT\SystemFileAssociations" /s /k /f "3D Print" ^| find /i "3D Print"') do (reg delete "%%I" /f) > nul
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search" /v AllowCortana /t REG_DWORD /d 0 /f > nul
-reg add "HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules"  /v "{2765E0F4-2918-4A46-B9C9-43CDD8FCBA2B}" /t REG_SZ /d   > nul"BlockCortana|Action=Block|Active=TRUE|Dir=Out|App=C:\windows\systemapps\microsoft.windows.cortana_cw5n1h2txyewy\searchui.exe|Name=Search  and Cortana  application|AppPkgId=S-1-15-2-1861897761-1695161497-2927542615-642690995-327840285-2659745135-2630312742|" /f
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules"  /v "{2765E0F4-2918-4A46-B9C9-43CDD8FCBA2B}" /t REG_SZ /d "BlockCortana|Action=Block|Active=TRUE|Dir=Out|App=C:\windows\systemapps\microsoft.windows.cortana_cw5n1h2txyewy\searchui.exe|Name=Search  and Cortana  application|AppPkgId=S-1-15-2-1861897761-1695161497-2927542615-642690995-327840285-2659745135-2630312742|" /f > nul
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" /v BingSearchEnabled /t REG_DWORD /d 0 /f > nul
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" /v Disabled /t REG_DWORD /d 1 /f > nul
 reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting" /v Disabled /t REG_DWORD /d 1 /f > nul
@@ -196,7 +202,7 @@ sc delete OneSyncSvc > nul
 sc delete MessagingService > nul
 sc delete wercplsupport > nul
 sc delete PcaSvc > nul
-sc config wlidsvc start=demand
+sc config wlidsvc start=demand > nul
 sc delete wisvc > nul
 sc delete RetailDemo > nul
 sc delete diagsvc > nul
@@ -264,7 +270,7 @@ schtasks /Change /TN "\Microsoft\Windows\Subscription\LicenseAcquisition" /disab
 schtasks /Change /TN "\Microsoft\Windows\Diagnosis\RecommendedTroubleshootingScanner" /disable > nul
 schtasks /Change /TN "\Microsoft\Windows\Diagnosis\Scheduled" /disable > nul
 schtasks /Change /TN "\Microsoft\Windows\NetTrace\GatherNetworkInfo" /disable > nul
-del /F /Q "C:\Windows\System32\Tasks\Microsoft\Windows\SettingSync\*" 
+del /F /Q "C:\Windows\System32\Tasks\Microsoft\Windows\SettingSync\*" > nul
 %pwr% "Get-AppxPackage -Name MicrosoftCorporationII.QuickAssist | Remove-AppxPackage -AllUsers" > nul
 
 :: Fuck edge
@@ -273,9 +279,9 @@ taskkill /F /IM RuntimeBroker.exe > nul
 taskkill /F /IM MicrosoftEdge.exe > nul
 taskkill /F /IM MicrosoftEdgeCP.exe > nul
 taskkill /F /IM MicrosoftEdgeSH.exe > nul
-%pwr% "mv C:\Windows\SystemApps\Microsoft.MicrosoftEdge_8wekyb3d8bbwe C:\Windows\SystemApps\Microsoft.MicrosoftEdge_8wekyb3d8bbwe_BAK"
+%pwr% "mv C:\Windows\SystemApps\Microsoft.MicrosoftEdge_8wekyb3d8bbwe C:\Windows\SystemApps\Microsoft.MicrosoftEdge_8wekyb3d8bbwe_BAK" > nul
 reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\MicrosoftEdge.exe" /v Debugger /t REG_SZ /d "%windir%\System32\taskkill.exe" /f > nul
-%pwr% "Get-WindowsPackage -Online | Where PackageName -like *InternetExplorer* | Remove-WindowsPackage -Online -NoRestart"
+%pwr% "Get-WindowsPackage -Online | Where PackageName -like *InternetExplorer* | Remove-WindowsPackage -Online -NoRestart" > nul
 reg delete "HKLM\SOFTWARE\WOW6432Node\Microsoft\Internet Explorer\Extensions\{2670000A-7350-4f3c-8081-5663EE0C6C49}" /f > nul
 reg delete "HKLM\SOFTWARE\Microsoft\Internet Explorer\Extensions\{2670000A-7350-4f3c-8081-5663EE0C6C49}" /f > nul
 reg delete "HKLM\SOFTWARE\Microsoft\Internet Explorer\Extensions\{789FE86F-6FC4-46A1-9849-EDE0DB0C95CA}" /f > nul
@@ -283,9 +289,10 @@ reg delete "HKLM\SOFTWARE\WOW6432Node\Microsoft\Internet Explorer\Extensions\{78
 reg delete "HKLM\SOFTWARE\WOW6432Node\Microsoft\Internet Explorer\Extensions\{31D09BA0-12F5-4CCE-BE8A-2923E76605DA}" /f > nul
 reg delete "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Explorer\Browser Helper Objects\{31D09BA0-12F5-4CCE-BE8A-2923E76605DA}" /f > nul
 if not exist "C:\Program Files (x86)\Microsoft\Edge\Application\BHO" (
-    rmdir /s /q "C:\Program Files (x86)\Microsoft\Edge\Application\BHO"
+    rmdir /s /q "C:\Program Files (x86)\Microsoft\Edge\Application\BHO" > nul
 )
-schtasks /create /tn "Part of Debloat - IEtoEDGE Removal" /tr "powershell.exe Get-ChildItem -Path 'C:\Program Files (x86)\Microsoft\Edge\Application' -Recurse -Filter 'BHO' | Remove-Item -Force  > nul-Recurse" /ri 1 /du 1 /f
+schtasks /create /tn "Part of Debloat - IEtoEDGE Removal" /tr "powershell.exe Get-ChildItem -Path 'C:\Program Files (x86)\Microsoft\Edge\Application' -Recurse -Filter 'BHO' | Remove-Item -Force > nul-Recurse" /sc daily /ri 1 /du 1 /f > nul
+
 
 
 :: Fuck OneDrive 
@@ -333,12 +340,12 @@ reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive" /v "DisableFileSyncN
 
 
 :: System restore...
-%pwr% Disable-ComputerRestore -Drive "C:\"
-vssadmin delete shadows /all /Quiet
+%pwr% Disable-ComputerRestore -Drive "C:\" > nul
+vssadmin delete shadows /all /Quiet > nul
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore" /v "DisableConfig" /t "REG_DWORD" /d "1" /f > nul
 reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" /v "DisableConfig" /t "REG_DWORD" /d "1" /f > nul
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore" /v "DisableSR" /t "REG_DWORD" /d "1" /f
-reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" /v "DisableSR" /t "REG_DWORD" /d "1" /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore" /v "DisableSR" /t "REG_DWORD" /d "1" /f > nul
+reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" /v "DisableSR" /t "REG_DWORD" /d "1" /f > nul
 schtasks /Change /TN "\Microsoft\Windows\SystemRestore\SR" /disable > nul
 
 
@@ -436,8 +443,8 @@ reg delete "HKLM\SOFTWARE\Classes\Folder\ShellEx\ContextMenuHandlers\Library Loc
 
 ::powershell.exe -Command "$env:PATH = ($env:PATH -split ";" | Where-Object { $_ -ne $pwsh5Path }) -join ";"
 ::powershell.exe -Command "$env:PATH += ';$pwsh7Path'"
-%pwr% "Stop-Process -Name explorer"
-%pwr% "Start-Process -FilePath explorer"
+::%pwr% "Stop-Process -Name explorer"
+::%pwr% "Start-Process -FilePath explorer"
 set "PS7InstallerPath=C:\PSTemp\PowerShell-7.3.9-win-x64.msi"
 set "PS7InstallerURL=https://github.com/PowerShell/PowerShell/releases/download/v7.4.1/PowerShell-7.4.1-win-x64.msi"
 if not exist "C:\Program Files\PowerShell\7\pwsh.exe" (
@@ -458,17 +465,17 @@ reg add "HKLM\SOFTWARE\Classes\Directory\Background\shell\PowerShell7AsAdmin" /v
 reg delete "HKLM\SOFTWARE\Classes\Directory\Background\shell\PowerShell7AsAdmin" /v "Extended" /f > nul
 reg add "HKLM\SOFTWARE\Classes\Directory\Background\shell\PowerShell7AsAdmin" /v "HasLUAShield" /t REG_SZ /d "" /f > nul
 reg add "HKLM\SOFTWARE\Classes\Directory\Background\shell\PowerShell7AsAdmin" /v "Icon" /t REG_SZ /d "powershell.exe" /f > nul
-reg add "HKLM\SOFTWARE\Classes\Directory\Background\shell\PowerShell7AsAdmin\command" /v "(default)" /t REG_SZ /d "powershell -WindowStyle Hidden -NoProfile -Command \"Start-Process -Verb RunAs pwsh.exe  > nul-ArgumentList \"-NoExit -Command Push-Location \\\"\"%V/\\\"\"\"\"" /f
+reg add "HKLM\SOFTWARE\Classes\Directory\Background\shell\PowerShell7AsAdmin\command" /v "(default)" /t REG_SZ /d "powershell -WindowStyle Hidden -NoProfile -Command \"Start-Process -Verb RunAs pwsh.exe  -ArgumentList \"-NoExit -Command Push-Location \\\"\"%V/\\\"\"\"\"" /f > nul
 reg add "HKLM\SOFTWARE\Classes\Directory\shell\PowerShell7AsAdmin" /v "(default)" /t REG_SZ /d "Open with PowerShell 7 (Admin)" /f > nul
 reg delete "HKLM\SOFTWARE\Classes\Directory\shell\PowerShell7AsAdmin" /v "Extended" /f > nul
 reg add "HKLM\SOFTWARE\Classes\Directory\shell\PowerShell7AsAdmin" /v "HasLUAShield" /t REG_SZ /d "" /f > nul
 reg add "HKLM\SOFTWARE\Classes\Directory\shell\PowerShell7AsAdmin" /v "Icon" /t REG_SZ /d "pwsh.exe" /f > nul
-reg add "HKLM\SOFTWARE\Classes\Directory\shell\PowerShell7AsAdmin\command" /v "(default)" /t REG_SZ /d "powershell -WindowStyle Hidden -NoProfile -Command \"Start-Process -Verb RunAs pwsh.exe  > nul-ArgumentList \"-NoExit -Command Push-Location \\\"\"%V/\\\"\"\"\"" /f
+reg add "HKLM\SOFTWARE\Classes\Directory\shell\PowerShell7AsAdmin\command" /v "(default)" /t REG_SZ /d "powershell -WindowStyle Hidden -NoProfile -Command \"Start-Process -Verb RunAs pwsh.exe  -ArgumentList \"-NoExit -Command Push-Location \\\"\"%V/\\\"\"\"\"" /f > nul
 reg add "HKLM\SOFTWARE\Classes\Drive\shell\PowerShell7AsAdmin" /v "(default)" /t REG_SZ /d "Open with PowerShell 7 (Admin)" /f > nul
 reg delete "HKLM\SOFTWARE\Classes\Drive\shell\PowerShell7AsAdmin" /v "Extended" /f > nul
 reg add "HKLM\SOFTWARE\Classes\Drive\shell\PowerShell7AsAdmin" /v "HasLUAShield" /t REG_SZ /d "" /f > nul
 reg add "HKLM\SOFTWARE\Classes\Drive\shell\PowerShell7AsAdmin" /v "Icon" /t REG_SZ /d "pwsh.exe" /f > nul
-reg add "HKLM\SOFTWARE\Classes\Drive\shell\PowerShell7AsAdmin\command" /v "(default)" /t REG_SZ /d "powershell -WindowStyle Hidden -NoProfile -Command \"Start-Process -Verb RunAs pwsh.exe -ArgumentList  > nul\"-NoExit -Command Push-Location \\\"\"%V/\\\"\"\"\"" /f
+reg add "HKLM\SOFTWARE\Classes\Drive\shell\PowerShell7AsAdmin\command" /v "(default)" /t REG_SZ /d "powershell -WindowStyle Hidden -NoProfile -Command \"Start-Process -Verb RunAs pwsh.exe -ArgumentList  \"-NoExit -Command Push-Location \\\"\"%V/\\\"\"\"\"" /f > nul
 
 
 
@@ -586,23 +593,24 @@ reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v Cons
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v PromptOnSecureDesktop /t REG_DWORD /d 1 /f > nul
 :: Install OOSU10
 :: Credit: Chris Titus for oosu config file.
-%pwr% "Start-BitsTransfer 'https://dl5.oo-software.com/files/ooshutup10/OOSU10.exe'"
-%pwr% "Start-BitsTransfer 'https://raw.githubusercontent.com/Emil8630/hardener/main/ooshutup10.cfg'"
-%pwr% "Start-Process -FilePath './OOSU10.exe' -ArgumentList 'ooshutup10.cfg /quiet' -Wait"
-%pwr% "Remove-Item -Path '.\OOSU10.exe' -Force"
-%pwr% "Remove-Item -Path '.\ooshutup10.cfg' -Force"
+%pwr% "Start-BitsTransfer 'https://dl5.oo-software.com/files/ooshutup10/OOSU10.exe'" > nul
+%pwr% "Start-BitsTransfer 'https://raw.githubusercontent.com/Emil8630/hardener/main/ooshutup10.cfg'" > nul
+%pwr% "Start-Process -FilePath './OOSU10.exe' -ArgumentList 'ooshutup10.cfg /quiet' -Wait" > nul
+%pwr% "Remove-Item -Path '.\OOSU10.exe' -Force" > nul
+%pwr% "Remove-Item -Path '.\ooshutup10.cfg' -Force" > nul
 
-%u% Finishing touches...
+title Finishing touches...
+echo Finishing touches...
 :: Finishing deepclean of filesystem
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\*" /v StateFlags0005 /t REG_DWORD /d 2 /f > nul
-%pwr% "Start-Process -FilePath CleanMgr.exe -ArgumentList '/sagerun:5' -Wait"
+%pwr% "Start-Process -FilePath CleanMgr.exe -ArgumentList '/sagerun:5' -Wait" > nul
 :: Remove files with specific extensions
 for %%e in (gid, chk, old) do (
     for /r "%systemdrive%\" %%f in (*%%e) do del "%%f" > nul
 )
 :: Remove files from Recycle Bin
-for /r "%SystemRoot%\RecycleBin\" %%f in (*) do del "%%f"
-for /d /r "%SystemRoot%\RecycleBin\" %%d in (*) do rmdir "%%d"
+for /r "%SystemRoot%\RecycleBin\" %%f in (*) do del "%%f" > nul
+for /d /r "%SystemRoot%\RecycleBin\" %%d in (*) do rmdir "%%d" > nul
 :: Remove files with specific extensions from Windows directory
 for %%e in (bak, chk, old) do (
     for /r "%windir%\" %%f in (*%%e) do del "%%f" > nul
@@ -641,10 +649,12 @@ for %%t in ("C:\Windows\Temp", "%userprofile%\AppData\Local\Temp") do (
     for /r %%d in (*) do rmdir "%%d" /s /q > nul
     popd > nul
 )
-set END_TIME=%TIME%
-set /a ELAPSED_TIME=(1%END_TIME:~0,2%-1%START_TIME:~0,2%)*3600 + (1%END_TIME:~3,2%-1%START_TIME:~3,2%)*60 + (1%END_TIME:~6,2%-1%START_TIME:~6,2%)
+for /f "tokens=1-3 delims=:." %%a in ("%TIME%") do set /a "END_TIME=(((%%a*60)+1%%b %% 100)*60)+1%%c %% 100"
+set /a "ELAPSED_TIME=(END_TIME-START_TIME)"
+echo.
 echo Script took %ELAPSED_TIME% seconds to run
-%u% Done!
+title Done!
+echo Done!
 %pwr% "[System.Console]::Beep()"
 %pwr% "[System.Console]::Beep()"
 %pwr% "[System.Console]::Beep()"
@@ -652,5 +662,4 @@ echo Script took %ELAPSED_TIME% seconds to run
 %pwr% "[System.Console]::Beep()"
 msg * Computer will now restart!
 timeout /nobreak /t 10
-%pwr% "New-Item -Path "C:\Users\$env:USERNAME\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup" -Name "privacy_reminder.bat" -ItemType File -Value "@echo off`nchcp 65001 > nul`nmsg * Sök på "windows privacy hardening videos!!!`ndel `"%~f0`"" -Force
 %pwr% "Restart-Computer -Force"
