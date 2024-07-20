@@ -168,6 +168,9 @@ for %%A in (%Apps%) do (
     %pwr% "Get-AppXPackage -AllUsers |Where-Object {$_.InstallLocation -like '%%A'} | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register $($_.InstallLocation)}"
 )
 
+set "cls=cls & echo Running..."
+prompt $g$g%cls%
+
 schtasks /Change /TN "\Microsoft\Windows\HelloFace\FODCleanupTask" /Disable > nul
 for /f "tokens=1* delims= " %%I in ('reg query "HKEY_CLASSES_ROOT\SystemFileAssociations" /s /k /f "3D Edit" ^| find /i "3D Edit"') do (reg delete "%%I" /f) > nul
 for /f "tokens=1* delims= " %%I in ('reg query "HKEY_CLASSES_ROOT\SystemFileAssociations" /s /k /f "3D Print" ^| find /i "3D Print"') do (reg delete "%%I" /f) > nul
@@ -187,6 +190,8 @@ reg add "HKLM\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSoftLa
 reg add "HKLM\Software\Policies\Microsoft\Windows\CloudContent" /v DisableWindowsSpotlightFeatures /t REG_DWORD /d 1 /f > nul
 reg add "HKLM\Software\Policies\Microsoft\Windows\CloudContent" /v DisableWindowsConsumerFeatures /t REG_DWORD /d 1 /f > nul
 reg add "HKLM\Software\Policies\Microsoft\Windows\DataCollection" /v DoNotShowFeedbackNotifications /t REG_DWORD /d 1 /f > nul
+reg add "HKLM\Software\Policies\Microsoft\Windows\DataCollection" /v DisableOneSettingsDownloads /t REG_DWORD /d 1 /f > nul
+reg add "HKLM\Software\Policies\Microsoft\Windows\DataCollection" /v LimitDiagnosticLogCollection /t REG_DWORD /d 1 /f > nul
 reg add "HKLM\Software\Policies\Microsoft\WindowsInkWorkspace" /v AllowSuggestedAppsInWindowsInkWorkspace /t REG_DWORD /d 0 /f > nul
 reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v "SilentInstalledAppsEnabled" /t REG_DWORD /d 0 /f > nul
 reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v "ContentDeliveryAllowed" /t REG_DWORD /d 0 /f > nul
@@ -477,8 +482,6 @@ reg add "HKLM\SOFTWARE\Classes\Drive\shell\PowerShell7AsAdmin" /v "HasLUAShield"
 reg add "HKLM\SOFTWARE\Classes\Drive\shell\PowerShell7AsAdmin" /v "Icon" /t REG_SZ /d "pwsh.exe" /f > nul
 reg add "HKLM\SOFTWARE\Classes\Drive\shell\PowerShell7AsAdmin\command" /v "(default)" /t REG_SZ /d "powershell -WindowStyle Hidden -NoProfile -Command \"Start-Process -Verb RunAs pwsh.exe -ArgumentList  \"-NoExit -Command Push-Location \\\"\"%V/\\\"\"\"\"" /f > nul
 
-
-
 @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin" > nul
 choco install mpv > nul
 choco install librewolf > nul
@@ -559,18 +562,36 @@ reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 
 reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SubscribedContent-353694Enabled /t REG_DWORD /d 0 /f > nul
 reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SubscribedContent-353696Enabled /t REG_DWORD /d 0 /f > nul
 reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SystemPaneSuggestionsEnabled /t REG_DWORD /d 0 /f > nul
+
 :: Disable CloudContent
 if not exist "HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent" reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent" /f > nul
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent" /v DisableWindowsConsumerFeatures /t REG_DWORD /d 1 /f > nul
+
 :: Disable AdvertisingInfo
 if not exist "HKLM\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" /f > nul
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" /v DisabledByGroupPolicy /t REG_DWORD /d 1 /f > nul
+
 :: Disable Windows Error Reporting
 reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting" /v Disabled /t REG_DWORD /d 1 /f > nul
 schtasks /delete /tn "Microsoft\Windows\Windows Error Reporting\QueueReporting" /f > nul
+
 :: Disable DeliveryOptimization
 if not exist "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" /f > nul
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" /v DODownloadMode /t REG_DWORD /d 0 /f > nul
+
+:: NEW FEATURES REQUIRE TESTING
+:: Removing vulnerable registry autorun entries
+set DLL_REG_KEY=HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs
+set DLL_KEYS=xtajit64 wow64win wow64con wow64base wow64 _xtajit _wowarmhw _wow64cpu
+for %%f in (%DLL_KEYS%) do (
+    if not exist "C:\WINDOWS\Syswow64\%%f.dll" if not exist "C:\WINDOWS\system32\%%f.dll" (
+        reg delete "%DLL_REG_KEY%" /v "%%f" /f > nul
+        if %errorlevel%==0 echo Deleted registry entry: %%f
+    ) else (
+        echo File %%f.dll exists, skipping registry deletion
+    )
+)
+
 :: Block Windows Telemetry using Windows Firewall
 netsh advfirewall firewall show rule name="Block Windows Telemetry in" > nul 2>&1
 if %errorlevel% neq 0 (
@@ -580,17 +601,22 @@ netsh advfirewall firewall show rule name="Block Windows Telemetry out" > nul 2>
 if %errorlevel% neq 0 (
     netsh advfirewall firewall add rule name="Block Windows Telemetry out" dir=out action=block remoteip=65.55.252.43,65.52.108.29,191.232.139.254,65.55.252.92,65.55.252.63,65.55.252.93,65.55.252.43,65.52.108.29,194.44.4.200,194.44.4.208,157.56.91.77,65.52.100.7,65.52.100.91,65.52.100.93,65.52.100.92,65.52.100.94,65.52.100.9,65.52.100.11,168.63.108.233,157.56.74.250,111.221.29.177,64.4.54.32,207.68.166.254,207.46.223.94,65.55.252.71,64.4.54.22,131.107.113.238,23.99.10.11,68.232.34.200,204.79.197.200,157.56.77.139,134.170.58.121,134.170.58.123,134.170.53.29,66.119.144.190,134.170.58.189,134.170.58.118,134.170.53.30,134.170.51.190,157.56.121.89,134.170.115.60,204.79.197.200,104.82.22.249,134.170.185.70,64.4.6.100,65.55.39.10,157.55.129.21,207.46.194.25,23.102.21.4,173.194.113.220,173.194.113.219,216.58.209.166,157.56.91.82,157.56.23.91,104.82.14.146,207.123.56.252,185.13.160.61,8.254.209.254,198.78.208.254,185.13.160.61,185.13.160.61,8.254.209.254,207.123.56.252,68.232.34.200,65.52.100.91,65.52.100.7,207.46.101.29,65.55.108.23,23.218.212.69 enable=yes > nul
 )
+
 :: Disable TIPC and HttpAcceptLanguageOptOut
 reg add "HKCU\SOFTWARE\Microsoft\Input\TIPC" /v Enabled /t REG_DWORD /d 0 /f > nul
 reg add "HKCU\Control Panel\International\User Profile" /v HttpAcceptLanguageOptOut /t REG_DWORD /d 1 /f > nul
+
 :: Disable DoNotShowFeedbackNotifications
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v DoNotShowFeedbackNotifications /t REG_DWORD /d 1 /f > nul
+
 :: Disable SIUF
 reg add "HKCU\SOFTWARE\Microsoft\Siuf\Rules" /v NumberOfSIUFInPeriod /t REG_DWORD /d 0 /f > nul
+
 :: Set UAC to MAX
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLUA /t REG_DWORD /d 1 /f > nul
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v ConsentPromptBehaviorAdmin /t REG_DWORD /d 2 /f > nul
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v PromptOnSecureDesktop /t REG_DWORD /d 1 /f > nul
+
 :: Install OOSU10
 :: Credit: Chris Titus for oosu config file.
 %pwr% "Start-BitsTransfer 'https://dl5.oo-software.com/files/ooshutup10/OOSU10.exe'" > nul
@@ -599,29 +625,42 @@ reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v Prom
 %pwr% "Remove-Item -Path '.\OOSU10.exe' -Force" > nul
 %pwr% "Remove-Item -Path '.\ooshutup10.cfg' -Force" > nul
 
+:: Making changes to hosts file.
+%pwr% "Start-BitsTransfer 'https://raw.githubusercontent.com/Emil8630/hardener/main/hosts'" > nul
+%pwr% "$sourceFile = Join-Path -Path $PSScriptRoot -ChildPath 'hosts'" > nul
+%pwr% "Copy-Item -Path $sourceFile -Destination 'C:\Windows\System32\drivers\etc\hosts' -Force" > nul
+%pwr% "Remove-Item -Path '.\hosts' -Force" > nul
+
 title Finishing touches...
 echo Finishing touches...
+
 :: Finishing deepclean of filesystem
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\*" /v StateFlags0005 /t REG_DWORD /d 2 /f > nul
 %pwr% "Start-Process -FilePath CleanMgr.exe -ArgumentList '/sagerun:5' -Wait" > nul
+
 :: Remove files with specific extensions
 for %%e in (gid, chk, old) do (
     for /r "%systemdrive%\" %%f in (*%%e) do del "%%f" > nul
 )
+
 :: Remove files from Recycle Bin
 for /r "%SystemRoot%\RecycleBin\" %%f in (*) do del "%%f" > nul
 for /d /r "%SystemRoot%\RecycleBin\" %%d in (*) do rmdir "%%d" > nul
+
 :: Remove files with specific extensions from Windows directory
 for %%e in (bak, chk, old) do (
     for /r "%windir%\" %%f in (*%%e) do del "%%f" > nul
 )
+
 :: Remove files from Prefetch folder
 for %%f in ("%windir%\prefetch\*") do (
     del "%%f" > nul
 )
+
 :: Remove Temp folder and recreate it
 rmdir /s /q "%windir%\temp" > nul
 mkdir "%windir%\temp" > nul
+
 :: Remove files from user profile directories
 set userprofile=%userprofile%
 for %%d in (cookies, recent) do (
@@ -629,20 +668,25 @@ for %%d in (cookies, recent) do (
         del "%%f" > nul
     )
 )
+
 :: Remove directories
 for %%d in ("Local Settings\Temporary Internet Files", "AppData\Local\Microsoft\Windows\Temporary Internet Files", "Local Settings\Temp", "recent") do (
     rmdir /s /q "%userprofile%\%%d" > nul
 )
+
 :: Remove $Recycle.bin folder
 rmdir /s /q "%systemdrive%\$Recycle.bin" > nul
+
 :: Run commands to clear Internet Explorer cache
 RunDll32.exe InetCpl.cpl,ClearMyTracksByProcess 2 > nul
 RunDll32.exe InetCpl.cpl,ClearMyTracksByProcess 1 > nul
 RunDll32.exe InetCpl.cpl,ClearMyTracksByProcess 8 > nul
+
 :: Remove directories
 for %%d in (AMD, NVIDIA, INTEL) do (
     rmdir /s /q "%systemdrive%\%%d" > nul
 )
+
 :: Remove files from Temp folders
 for %%t in ("C:\Windows\Temp", "%userprofile%\AppData\Local\Temp") do (
     pushd "%%t" > nul
